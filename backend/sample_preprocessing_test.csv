@@ -1,0 +1,9 @@
+weight,color,color_score,fruit
+150,red,7,apple
+160,red,8,apple
+170,,7,apple
+180,green,8,apple
+100,orange,3,orange
+110,orange,,orange
+120,yellow,3,orange
+130,yellow,4,orange

@@ -1,0 +1,14 @@
+[Unit]
+Description=ModelCloud FastAPI Backend Service
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/dpti/backend
+ExecStart=/home/ubuntu/dpti/backend/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=5
+EnvironmentFile=/home/ubuntu/dpti/backend/.env
+
+[Install]
+WantedBy=multi-user.target
