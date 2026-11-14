@@ -22,7 +22,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import ModelArtifact, PredictionRecord
+from ..models import ModelArtifact, PredictionRecord, User
+from .auth import get_current_user
 from ..services.model_service import (
     save_uploaded_file,
     validate_model_file,
@@ -305,6 +306,7 @@ def register_model(
     input_schema: str = Form(...),
     output_description: str = Form(...),
     model_file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     if framework.lower() != "scikit-learn":
@@ -404,6 +406,8 @@ def register_model(
     validation_status = "VALID" if is_valid else "INVALID"
 
     artifact = ModelArtifact(
+        user_id=current_user.id,
+        user_email=current_user.email,
         model_name=model_name,
         description=description,
         framework=framework,
@@ -437,6 +441,8 @@ def register_model(
         "message": "Model registered successfully.",
         "model": {
             "id": artifact.id,
+            "user_id": artifact.user_id,
+            "user_email": artifact.user_email,
             "model_name": artifact.model_name,
             "version": artifact.version,
             "framework": artifact.framework,
@@ -451,7 +457,10 @@ def register_model(
 # --------------------------------------------------
 
 @router.get("/")
-def get_models(db: Session = Depends(get_db)):
+def get_models(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     models = (
         db.query(ModelArtifact)
         .order_by(ModelArtifact.created_at.desc())
@@ -461,16 +470,19 @@ def get_models(db: Session = Depends(get_db)):
     return [
         {
             "id": model.id,
+            "user_id": model.user_id,
+            "user_email": model.user_email or "System",
+            "is_owner": model.user_id == current_user.id,
             "model_name": model.model_name,
             "framework": model.framework,
             "version": model.version,
             "validation_status": model.validation_status,
             "metrics": parse_json(
-    model.validation_message.split("Metrics: ", 1)[1]
-    if model.validation_message and "Metrics: " in model.validation_message
-    else None,
-    fallback=None,
-),
+                model.validation_message.split("Metrics: ", 1)[1]
+                if model.validation_message and "Metrics: " in model.validation_message
+                else None,
+                fallback=None,
+            ),
             "created_at": model.created_at.isoformat(),
         }
         for model in models
@@ -489,10 +501,12 @@ def get_prediction_history(
         le=500,
         description="Maximum number of prediction records to return.",
     ),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     records = (
         db.query(PredictionRecord)
+        .filter(PredictionRecord.user_id == current_user.id)
         .order_by(PredictionRecord.created_at.desc())
         .limit(limit)
         .all()
@@ -503,6 +517,8 @@ def get_prediction_history(
     for record in records:
         history.append({
             "id": record.id,
+            "user_id": record.user_id,
+            "user_email": record.user_email or current_user.email,
             "model_id": record.model_id,
             "model_name": record.model_name,
             "model_version": record.model_version,
@@ -525,7 +541,10 @@ def get_prediction_history(
 # --------------------------------------------------
 
 @router.get("/analytics/summary")
-def get_analytics_summary(db: Session = Depends(get_db)):
+def get_analytics_summary(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     total_models = db.query(ModelArtifact).count()
 
     valid_models = (
@@ -536,6 +555,7 @@ def get_analytics_summary(db: Session = Depends(get_db)):
 
     records = (
         db.query(PredictionRecord)
+        .filter(PredictionRecord.user_id == current_user.id)
         .order_by(PredictionRecord.created_at.desc())
         .all()
     )
@@ -603,6 +623,7 @@ def get_analytics_summary(db: Session = Depends(get_db)):
 @router.get("/{model_id}")
 def get_model(
     model_id: int,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     artifact = (
@@ -619,6 +640,9 @@ def get_model(
 
     return {
         "id": artifact.id,
+        "user_id": artifact.user_id,
+        "user_email": artifact.user_email or "System",
+        "is_owner": artifact.user_id == current_user.id,
         "model_name": artifact.model_name,
         "description": artifact.description,
         "framework": artifact.framework,
@@ -640,6 +664,7 @@ def get_model(
 def predict(
     model_id: int,
     request: PredictionRequest,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     artifact = (
@@ -719,6 +744,8 @@ def predict(
         ) from error
 
     record = PredictionRecord(
+        user_id=current_user.id,
+        user_email=current_user.email,
         model_id=artifact.id,
         model_name=artifact.model_name,
         model_version=artifact.version,

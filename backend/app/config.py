@@ -41,3 +41,8 @@ AWS_S3_BUCKET_NAME = os.getenv("AWS_S3_BUCKET_NAME", "")
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "")
+
+# JWT Authentication Configuration
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "modelcloud-super-secret-jwt-key-2026-auth")
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRATION_HOURS = int(os.getenv("JWT_EXPIRATION_HOURS", "72"))

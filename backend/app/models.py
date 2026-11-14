@@ -11,10 +11,26 @@ from sqlalchemy import (
 from .database import Base
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, index=True, nullable=False)
+    hashed_password = Column(String, nullable=False)
+    full_name = Column(String, nullable=False)
+    created_at = Column(
+        DateTime,
+        default=datetime.datetime.utcnow,
+        nullable=False,
+    )
+
+
 class ModelArtifact(Base):
     __tablename__ = "model_artifacts"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=True, index=True)
+    user_email = Column(String, nullable=True)
     model_name = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     framework = Column(String, nullable=False)
@@ -37,6 +53,8 @@ class PredictionRecord(Base):
     __tablename__ = "prediction_records"
 
     id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, nullable=True, index=True)
+    user_email = Column(String, nullable=True)
     model_id = Column(Integer, nullable=False, index=True)
     model_name = Column(String, nullable=False)
     model_version = Column(String, nullable=False)

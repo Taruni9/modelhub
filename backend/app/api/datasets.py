@@ -30,7 +30,8 @@ from sklearn.metrics import (
 )
 
 from ..database import get_db
-from ..models import ModelArtifact
+from ..models import ModelArtifact, User
+from .auth import get_current_user
 from ..services.model_service import save_uploaded_file
 
 
@@ -176,6 +177,7 @@ def inspect_dataframe(df):
 @router.post("/inspect")
 def inspect_csv(
     dataset_file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
 ):
     """Inspect CSV columns before the user starts training."""
     filename, df = read_csv_upload(dataset_file)
@@ -193,6 +195,7 @@ def upload_csv_and_train(
     model_name: str = Form(...),
     target_column: str = Form(...),
     task: str = Form(...),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     if task not in {"classification", "regression"}:
@@ -475,6 +478,8 @@ def upload_csv_and_train(
     }
 
     artifact = ModelArtifact(
+        user_id=current_user.id,
+        user_email=current_user.email,
         model_name=model_name,
         description=(
             f"Trained from {filename}; task={task}; "
@@ -514,6 +519,8 @@ def upload_csv_and_train(
         "message": "Model trained, evaluated, and registered.",
         "model": {
             "id": artifact.id,
+            "user_id": artifact.user_id,
+            "user_email": artifact.user_email,
             "model_name": artifact.model_name,
             "version": artifact.version,
             "task": task,

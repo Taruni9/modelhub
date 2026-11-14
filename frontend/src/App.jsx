@@ -15,6 +15,27 @@ import {
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 function App() {
+  // Authentication & session management
+  const [authToken, setAuthToken] = useState(
+    () => localStorage.getItem("modelhub_token") || ""
+  );
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem("modelhub_user");
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [authMode, setAuthMode] = useState("login"); // "login" | "register"
+  const [authFullName, setAuthFullName] = useState("");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authConfirmPassword, setAuthConfirmPassword] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState("");
+
   const [models, setModels] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingModels, setLoadingModels] = useState(true);
@@ -173,14 +194,126 @@ function App() {
   }
 
   // ----------------------------------------
-  // INITIAL DATA LOADING
+  // AXIOS AUTHENTICATION INTERCEPTORS
   // ----------------------------------------
 
   useEffect(() => {
-    fetchModels();
-    fetchHistory();
-    fetchAnalytics();
+    const reqInterceptor = axios.interceptors.request.use((config) => {
+      const token = localStorage.getItem("modelhub_token");
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      return config;
+    });
+
+    const resInterceptor = axios.interceptors.response.use(
+      (response) => response,
+      (err) => {
+        if (err.response?.status === 401) {
+          localStorage.removeItem("modelhub_token");
+          localStorage.removeItem("modelhub_user");
+          setAuthToken("");
+          setCurrentUser(null);
+        }
+        return Promise.reject(err);
+      }
+    );
+
+    return () => {
+      axios.interceptors.request.eject(reqInterceptor);
+      axios.interceptors.response.eject(resInterceptor);
+    };
   }, []);
+
+  // ----------------------------------------
+  // AUTHENTICATION HANDLERS
+  // ----------------------------------------
+
+  async function handleAuthSubmit(event) {
+    event.preventDefault();
+    setAuthError("");
+
+    if (authMode === "register") {
+      if (!authFullName.trim()) {
+        setAuthError("Please enter your full name.");
+        return;
+      }
+      if (authPassword.length < 6) {
+        setAuthError("Password must be at least 6 characters.");
+        return;
+      }
+      if (authPassword !== authConfirmPassword) {
+        setAuthError("Passwords do not match.");
+        return;
+      }
+
+      setAuthLoading(true);
+      try {
+        const response = await axios.post(`${API_URL}/api/auth/register`, {
+          full_name: authFullName.trim(),
+          email: authEmail.trim(),
+          password: authPassword,
+        });
+
+        const { access_token, user } = response.data;
+        localStorage.setItem("modelhub_token", access_token);
+        localStorage.setItem("modelhub_user", JSON.stringify(user));
+        setAuthToken(access_token);
+        setCurrentUser(user);
+        setAuthPassword("");
+        setAuthConfirmPassword("");
+      } catch (err) {
+        setAuthError(
+          err.response?.data?.detail || "Registration failed. Please check inputs."
+        );
+      } finally {
+        setAuthLoading(false);
+      }
+    } else {
+      setAuthLoading(true);
+      try {
+        const response = await axios.post(`${API_URL}/api/auth/login`, {
+          email: authEmail.trim(),
+          password: authPassword,
+        });
+
+        const { access_token, user } = response.data;
+        localStorage.setItem("modelhub_token", access_token);
+        localStorage.setItem("modelhub_user", JSON.stringify(user));
+        setAuthToken(access_token);
+        setCurrentUser(user);
+        setAuthPassword("");
+      } catch (err) {
+        setAuthError(
+          err.response?.data?.detail || "Invalid email or password."
+        );
+      } finally {
+        setAuthLoading(false);
+      }
+    }
+  }
+
+  function handleLogout() {
+    localStorage.removeItem("modelhub_token");
+    localStorage.removeItem("modelhub_user");
+    setAuthToken("");
+    setCurrentUser(null);
+    setModels([]);
+    setHistory([]);
+    setAnalytics(null);
+  }
+
+  // ----------------------------------------
+  // DATA LOADING WHEN AUTHENTICATED
+  // ----------------------------------------
+
+  useEffect(() => {
+    if (authToken) {
+      fetchModels();
+      fetchHistory();
+      fetchAnalytics();
+    }
+  }, [authToken]);
 
   // ----------------------------------------
   // LOAD SELECTED MODEL'S INPUT SCHEMA
@@ -743,16 +876,157 @@ function App() {
   // DASHBOARD
   // ----------------------------------------
 
+  if (!authToken) {
+    return (
+      <div className="auth-page">
+        <div className="auth-card">
+          <div className="auth-brand">
+            <div className="auth-brand-icon">MH</div>
+            <h2>ModelHub</h2>
+            <p>Web-Based ML Model Training & Serving Platform</p>
+          </div>
+
+          <div className="auth-tabs">
+            <button
+              type="button"
+              className={`auth-tab ${authMode === "login" ? "active" : ""}`}
+              onClick={() => {
+                setAuthMode("login");
+                setAuthError("");
+              }}
+            >
+              Sign In
+            </button>
+            <button
+              type="button"
+              className={`auth-tab ${authMode === "register" ? "active" : ""}`}
+              onClick={() => {
+                setAuthMode("register");
+                setAuthError("");
+              }}
+            >
+              Create Account
+            </button>
+          </div>
+
+          {authError && (
+            <div className="auth-error" role="alert">
+              {authError}
+            </div>
+          )}
+
+          <form className="auth-form" onSubmit={handleAuthSubmit}>
+            {authMode === "register" && (
+              <div className="auth-field">
+                <label htmlFor="auth-full-name">Full Name</label>
+                <input
+                  id="auth-full-name"
+                  type="text"
+                  placeholder="e.g. Alex Student"
+                  value={authFullName}
+                  onChange={(e) => setAuthFullName(e.target.value)}
+                  required
+                />
+              </div>
+            )}
+
+            <div className="auth-field">
+              <label htmlFor="auth-email">Email Address</label>
+              <input
+                id="auth-email"
+                type="email"
+                placeholder="name@college.edu"
+                value={authEmail}
+                onChange={(e) => setAuthEmail(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="auth-field">
+              <label htmlFor="auth-password">Password</label>
+              <input
+                id="auth-password"
+                type="password"
+                placeholder="••••••••"
+                value={authPassword}
+                onChange={(e) => setAuthPassword(e.target.value)}
+                required
+              />
+            </div>
+
+            {authMode === "register" && (
+              <div className="auth-field">
+                <label htmlFor="auth-confirm-password">Confirm Password</label>
+                <input
+                  id="auth-confirm-password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={authConfirmPassword}
+                  onChange={(e) => setAuthConfirmPassword(e.target.value)}
+                  required
+                />
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="auth-submit-btn"
+              disabled={authLoading}
+            >
+              {authLoading
+                ? "Processing..."
+                : authMode === "login"
+                ? "Sign In to Platform"
+                : "Create Account"}
+            </button>
+          </form>
+
+          <p className="auth-toggle-note">
+            {authMode === "login" ? (
+              <>
+                Don't have an account?
+                <button
+                  type="button"
+                  className="auth-toggle-link"
+                  onClick={() => {
+                    setAuthMode("register");
+                    setAuthError("");
+                  }}
+                >
+                  Create one now
+                </button>
+              </>
+            ) : (
+              <>
+                Already registered?
+                <button
+                  type="button"
+                  className="auth-toggle-link"
+                  onClick={() => {
+                    setAuthMode("login");
+                    setAuthError("");
+                  }}
+                >
+                  Sign in here
+                </button>
+              </>
+            )}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const validModelCount = validModels.length;
 
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-icon">ML</div>
+          <div className="brand-icon">MH</div>
 
           <div>
-            <h2>ModelCloud</h2>
+            <h2>ModelHub</h2>
             <p>ML Serving Platform</p>
           </div>
         </div>
@@ -787,12 +1061,34 @@ function App() {
           <span>▥</span> Analytics
         </a>
 
+        <div className="user-profile-badge">
+          <div className="user-info-row">
+            <div className="user-avatar">
+              {currentUser?.full_name
+                ? currentUser.full_name.charAt(0).toUpperCase()
+                : "U"}
+            </div>
+            <div className="user-details">
+              <div className="user-name">{currentUser?.full_name || "User"}</div>
+              <div className="user-email">{currentUser?.email || ""}</div>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="logout-btn"
+            onClick={handleLogout}
+            title="Sign out of current account"
+          >
+            <span>🚪</span> Sign Out
+          </button>
+        </div>
+
         <div className="sidebar-footer">
           <div className="status-dot"></div>
 
           <div>
-            <strong>Local Environment</strong>
-            <p>API connection enabled</p>
+            <strong>Connected Session</strong>
+            <p>Authenticated via JWT</p>
           </div>
         </div>
       </aside>
@@ -805,14 +1101,13 @@ function App() {
             <h1>ML Model Dashboard</h1>
 
             <p className="subtitle">
-              Register, validate, and run predictions with
-              machine learning models.
+              Welcome back, {currentUser?.full_name || "User"}! Register, train, and run predictions with machine learning models.
             </p>
           </div>
 
           <div className="environment-badge">
             <span className="status-dot"></span>
-            Development
+            Cloud Ready
           </div>
         </header>
 
@@ -1684,6 +1979,7 @@ function App() {
                 <thead>
                   <tr>
                     <th>Model</th>
+                    <th>Owner</th>
                     <th>Framework</th>
                     <th>Version</th>
                     <th>Validation</th>
@@ -1696,10 +1992,19 @@ function App() {
                     <tr key={model.id}>
                       <td>
                         <strong>{model.model_name}</strong>
+                        {model.is_owner && (
+                          <span className="badge-owner">My Model</span>
+                        )}
 
                         <div className="table-description">
                           Model ID: {model.id}
                         </div>
+                      </td>
+
+                      <td>
+                        <span style={{ fontSize: "12px", color: "#475569" }}>
+                          {model.user_email || "System"}
+                        </span>
                       </td>
 
                       <td>{model.framework}</td>
