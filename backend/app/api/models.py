@@ -463,6 +463,7 @@ def get_models(
 ):
     models = (
         db.query(ModelArtifact)
+        .filter(ModelArtifact.user_id == current_user.id)
         .order_by(ModelArtifact.created_at.desc())
         .all()
     )
@@ -471,8 +472,8 @@ def get_models(
         {
             "id": model.id,
             "user_id": model.user_id,
-            "user_email": model.user_email or "System",
-            "is_owner": model.user_id == current_user.id,
+            "user_email": model.user_email or current_user.email,
+            "is_owner": True,
             "model_name": model.model_name,
             "framework": model.framework,
             "version": model.version,
@@ -545,11 +546,18 @@ def get_analytics_summary(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    total_models = db.query(ModelArtifact).count()
+    total_models = (
+        db.query(ModelArtifact)
+        .filter(ModelArtifact.user_id == current_user.id)
+        .count()
+    )
 
     valid_models = (
         db.query(ModelArtifact)
-        .filter(ModelArtifact.validation_status == "VALID")
+        .filter(
+            ModelArtifact.user_id == current_user.id,
+            ModelArtifact.validation_status == "VALID",
+        )
         .count()
     )
 
@@ -628,21 +636,24 @@ def get_model(
 ):
     artifact = (
         db.query(ModelArtifact)
-        .filter(ModelArtifact.id == model_id)
+        .filter(
+            ModelArtifact.id == model_id,
+            ModelArtifact.user_id == current_user.id,
+        )
         .first()
     )
 
     if not artifact:
         raise HTTPException(
             status_code=404,
-            detail="Model not found.",
+            detail="Model not found or access is not authorized.",
         )
 
     return {
         "id": artifact.id,
         "user_id": artifact.user_id,
-        "user_email": artifact.user_email or "System",
-        "is_owner": artifact.user_id == current_user.id,
+        "user_email": artifact.user_email or current_user.email,
+        "is_owner": True,
         "model_name": artifact.model_name,
         "description": artifact.description,
         "framework": artifact.framework,
@@ -669,14 +680,17 @@ def predict(
 ):
     artifact = (
         db.query(ModelArtifact)
-        .filter(ModelArtifact.id == model_id)
+        .filter(
+            ModelArtifact.id == model_id,
+            ModelArtifact.user_id == current_user.id,
+        )
         .first()
     )
 
     if not artifact:
         raise HTTPException(
             status_code=404,
-            detail=f"Model with ID {model_id} was not found.",
+            detail=f"Model with ID {model_id} was not found or access is not authorized.",
         )
 
     if artifact.validation_status != "VALID":
