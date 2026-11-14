@@ -1,173 +1,126 @@
-# ModelCloud – Zero-Cost AWS Deployment & Operations Guide
-> **Cloud-Based ML Model Serving Platform**  
-> *Designed for College Student Projects with Strict $0 Free-Tier Controls*
+# ModelHub – Zero-Credit-Card Free Cloud Deployment & Demo Guide
+> **ModelHub: Web-Based ML Model Training and Prediction Platform**  
+> *Production-Ready Multi-User Architecture with JWT Authentication & Model Ownership*
 
 ---
 
-## 1. Zero-Cost Architecture Overview
+## 1. Architecture & Security Highlights
 
-To ensure the deployment remains **completely free** (0.00 USD), ModelCloud uses this lightweight, production-ready stack:
-
-| Component | Service | Free Tier Allowance | Cost |
-| :--- | :--- | :--- | :--- |
-| **Backend Compute** | Amazon EC2 (`t2.micro` or `t3.micro`) | 750 hours/month (enough for 24/7 run for 12 months) | **$0.00** |
-| **Model & CSV Storage** | Amazon S3 + Local Caching | 5 GB standard storage, 20,000 GET, 2,000 PUT/month | **$0.00** |
-| **Database** | SQLite on EC2 EBS Storage | 30 GB EBS General Purpose (gp2/gp3) storage included | **$0.00** |
-| **Frontend Hosting** | Vercel / Netlify (or Nginx on EC2) | 100 GB bandwidth/month, unlimited free SSL | **$0.00** |
-| **Security & Auth** | AWS IAM Roles for EC2 | Always Free | **$0.00** |
-
-> **Why No Amazon RDS?**  
-> Amazon RDS (managed MySQL/Postgres) frequently incurs unexpected charges from backup storage, multi-AZ toggles, or exceeding IOPS. Storing the SQLite database (`ml_platform.db`) directly on the EC2 root EBS volume is 100% free, requires zero database management, persists across reboots, and easily handles thousands of student demo predictions.
+Your platform is completely updated with enterprise-grade user authentication and access control:
+- **Authentication**: Users create accounts and log in with their **Email** and **Password**.
+- **Cryptographic Hashing**: Passwords are saved with salted PBKDF2-SHA256 (100,000 hashing rounds), never in plain text.
+- **Authorization**: Stateless **JSON Web Tokens (JWT)** protect all endpoints.
+- **Access Control & Ownership**:
+  - Anonymous users are completely blocked (HTTP 401 Unauthorized) from listing models, training datasets, and running predictions.
+  - Model uploads and CSV training sessions are tagged with the creator's `user_id` and `user_email`.
+  - Predictions are private: users only see their own prediction history and personalized analytics summary.
 
 ---
 
-## 2. Step 1: Set Up AWS Cost Controls First (Must Do!)
+## 2. 100% Free Cloud Deployment (No Credit Card Required)
 
-Before launching any resources, set up AWS Budgets to alert you if spending ever exceeds $1:
+To deploy live on the web with a custom public URL for your project review without needing a credit card, we use **Render** (for the FastAPI backend) and **Vercel** (for the React Vite frontend).
 
-1. Log in to the [AWS Management Console](https://console.aws.amazon.com/).
-2. In the top search bar, type **AWS Budgets** and select it.
-3. Click **Create budget** -> Choose **Cost budget (Recommended)**.
-4. Set:
-   - **Budget Name**: `ModelCloud-ZeroCost-Budget`
-   - **Period**: Monthly
-   - **Budgeted amount**: `$1.00`
-5. Configure Alerts:
-   - Alert 1: When actual cost reaches **50% ($0.50)** -> Enter your email.
-   - Alert 2: When actual cost reaches **80% ($0.80)** -> Enter your email.
-   - Alert 3: When forecasted cost reaches **100% ($1.00)** -> Enter your email.
-6. Click **Confirm budget**.
+### Step 1: Push Your Code to GitHub (Takes 1 Minute)
 
----
-
-## 3. Step 2: S3 Bucket Setup (Model Artifact Storage)
-
-1. Open **Amazon S3** in the AWS Console.
-2. Click **Create bucket**.
-   - **Bucket name**: e.g., `modelcloud-storage-[yourname]` (must be globally unique).
-   - **AWS Region**: Choose closest to you (e.g., `us-east-1` or `ap-south-1`).
-   - **Block Public Access**: Keep **all blocked** (the bucket stays completely private).
-3. Click **Create bucket**.
+1. Open your browser and go to [github.com](https://github.com) (sign in or create a free account).
+2. Click the **+** icon in the top right -> **New repository**.
+3. Name it: `modelhub` (choose **Public** or **Private**) -> Click **Create repository**.
+4. In your PowerShell terminal in `c:\dpti`, run:
+   ```powershell
+   git remote add origin https://github.com/<YOUR_GITHUB_USERNAME>/modelhub.git
+   git branch -M master
+   git push -u origin master
+   ```
+*(Replace `<YOUR_GITHUB_USERNAME>` with your actual GitHub username).*
 
 ---
 
-## 4. Step 3: Launch the EC2 Backend Server
+### Step 2: Deploy Backend to Render (Free Tier, No Card)
 
-1. Open **Amazon EC2** -> Click **Launch Instance**.
-2. **Name**: `ModelCloud-Backend`
-3. **OS Image**: `Ubuntu Server 24.04 LTS (HVM), SSD Volume Type` (Free tier eligible).
-4. **Instance Type**: `t2.micro` (or `t3.micro` depending on region eligibility).
-5. **Key pair**: Create new key pair `modelcloud-key.pem` and download it.
-6. **Network / Security Group**:
-   - Allow **SSH traffic** from `Anywhere` (port 22) or `My IP`.
-   - Allow **Custom TCP** on port `8000` from `Anywhere` (0.0.0.0/0) for FastAPI.
-7. **Storage**: Keep default `8 GiB gp3` (up to 30 GiB is free).
-8. Click **Launch Instance**.
-
----
-
-## 5. Step 4: Attach IAM Role to EC2 (No Hardcoded Keys!)
-
-1. Go to **IAM Console** -> **Roles** -> **Create role**.
-2. Select **AWS service** -> Use case: **EC2** -> Click **Next**.
-3. In Permissions, attach: `AmazonS3FullAccess` (or create a policy limited to your bucket).
-4. Role name: `ModelCloud-EC2-S3-Role` -> Click **Create role**.
-5. Back in **EC2 Console**:
-   - Right-click your instance -> **Security** -> **Modify IAM role**.
-   - Select `ModelCloud-EC2-S3-Role` and click **Update IAM role**.
-
-*Your backend can now upload and download from S3 without putting any AWS Access Keys or Secret Keys in the code!*
+1. Go to [render.com](https://render.com) and click **Sign Up** -> **Continue with GitHub**.
+2. From the Render Dashboard, click **New +** -> **Web Service**.
+3. Click **Build and deploy from a Git repository** -> Select your `modelhub` repository.
+4. Render will automatically read the included `render.yaml` file!
+   - **Name**: `modelhub-backend`
+   - **Root Directory**: `backend`
+   - **Environment**: `Python 3`
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+   - **Plan**: Select **Free ($0/month)**
+5. Click **Create Web Service**.
+6. Render will build and deploy your API in ~2 minutes. Once finished, copy your free backend URL:
+   `https://modelhub-backend-xxxx.onrender.com`
 
 ---
 
-## 6. Step 5: Deploy the Backend on EC2
+### Step 3: Deploy Frontend to Vercel (Free Tier, No Card)
 
-Connect to your EC2 instance via SSH:
-```bash
-ssh -i "modelcloud-key.pem" ubuntu@<YOUR_EC2_PUBLIC_IP>
+1. Go to [vercel.com](https://vercel.com) and click **Sign Up** -> **Continue with GitHub**.
+2. Click **Add New...** -> **Project**.
+3. Select your `modelhub` repository from the list and click **Import**.
+4. In the Project Configuration:
+   - **Framework Preset**: Vite (detected automatically).
+   - **Root Directory**: Click *Edit* and select `frontend`.
+   - Expand **Environment Variables**:
+     - Key: `VITE_API_URL`
+     - Value: `https://modelhub-backend-xxxx.onrender.com` *(your Render backend URL from Step 2)*.
+5. Click **Deploy**.
+6. In ~45 seconds, your live frontend is ready with free SSL:
+   `https://modelhub-xxxx.vercel.app`
+
+🎉 **You now have a live, cloud-deployed, authenticated ML platform ready for examiners!**
+
+---
+
+## 3. Local College Demo Mode (Offline / Zero Internet)
+
+If the examination or presentation is conducted offline or on a campus intranet, you can run everything locally with zero cloud dependencies:
+
+### 1. Start the Backend API:
+Open PowerShell:
+```powershell
+cd c:\dpti
+c:\dpti\venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
+*Backend runs at: `http://127.0.0.1:8000` (Interactive API docs at `http://127.0.0.1:8000/docs`)*
 
-Run the following commands on the server:
-
-```bash
-# 1. Update system packages
-sudo apt update && sudo apt install -y python3-pip python3-venv git
-
-# 2. Clone or copy your project folder
-git clone <YOUR_GITHUB_REPO_URL> dpti
-cd dpti/backend
-
-# 3. Create virtual environment and install dependencies
-python3 -m venv venv
-source venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
-
-# 4. Configure environment variables
-cp .env.example .env
-nano .env
+### 2. Start the Frontend Dashboard:
+Open a second PowerShell window:
+```powershell
+cd c:\dpti\frontend
+npm run dev
 ```
-
-In `.env`, configure:
-```ini
-APP_NAME=ML Model Serving Platform
-STORAGE_BACKEND=s3
-AWS_S3_BUCKET_NAME=modelcloud-storage-[yourname]
-AWS_REGION=us-east-1
-# Leave AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY empty (handled by EC2 IAM Role)
-```
-
-### Enable Automatic Startup (Systemd Service)
-```bash
-# Copy systemd service file
-sudo cp modelcloud.service /etc/systemd/system/
-
-# Reload systemd, start and enable service
-sudo systemctl daemon-reload
-sudo systemctl start modelcloud
-sudo systemctl enable modelcloud
-
-# Check backend status
-sudo systemctl status modelcloud
-```
-
-Test your backend in browser or curl:
-`http://<YOUR_EC2_PUBLIC_IP>:8000/health` -> `{"status": "healthy"}`
+*Frontend runs at: `http://localhost:5173`*
 
 ---
 
-## 7. Step 6: Deploy Frontend (100% Free on Netlify or Vercel)
+## 4. How to Present and Demo to Examiners
 
-### Option A: Free Vercel Deployment (Recommended)
-1. Push your repository to GitHub.
-2. Sign in to [Vercel](https://vercel.com) using your GitHub account.
-3. Click **Add New Project** -> Select your repository.
-4. Set **Root Directory** to `frontend`.
-5. Under **Environment Variables**, add:
-   - `VITE_API_URL` = `http://<YOUR_EC2_PUBLIC_IP>:8000`
-6. Click **Deploy**.
-7. Your app is now live at `https://your-project.vercel.app`!
+Here is the recommended script for your viva/presentation:
 
-### Option B: Free Netlify Deployment
-1. Sign in to [Netlify](https://netlify.com).
-2. Click **Add new site** -> **Import an existing project**.
-3. Select your repository.
-4. Base directory: `frontend`
-5. Build command: `npm run build`
-6. Publish directory: `frontend/dist`
-7. Environment variables: `VITE_API_URL` = `http://<YOUR_EC2_PUBLIC_IP>:8000`
-8. Click **Deploy site**.
-
----
-
-## 8. How to Stop / Delete AWS Resources (Prevent Any Billing)
-
-When your college presentation or testing is finished:
-
-1. **Stop the EC2 Instance** (Stops all compute hours):
-   - EC2 Console -> Select `ModelCloud-Backend` -> **Instance state** -> **Stop instance**.
-   - *Note:* Stopped instances incur zero compute charges. Only a tiny fraction of a cent per month for the 8GB disk if kept indefinitely.
-2. **Delete the S3 Bucket**:
-   - S3 Console -> Select your bucket -> **Empty** -> Then **Delete**.
-3. **Terminate EC2 Instance** (Complete deletion):
-   - Instance state -> **Terminate instance** (deletes instance and its EBS volume completely).
+1. **User Authentication & Protection**:
+   - Open `http://localhost:5173` (or your live Vercel URL).
+   - Show that anonymous access is prohibited: no models, predictions, or datasets can be viewed without logging in.
+   - Switch to **Create Account**: Register a new user (e.g. `alex@college.edu`).
+   - Log in and point out the user profile badge in the sidebar displaying the authenticated user.
+2. **Automated ML Training from CSV**:
+   - Navigate to **Train from CSV**.
+   - Upload any CSV (e.g., student grades, house prices, salary data, or iris).
+   - The platform automatically inspects columns, identifies numeric and categorical features, suggests the task (classification vs regression), and trains a scikit-learn pipeline with preprocessing (imputation, scaling, one-hot encoding).
+   - Show the held-out validation metrics (Accuracy, F1-Score, R², RMSE).
+3. **Model Registry & Access Ownership**:
+   - Navigate to **Model Registry**.
+   - Show the newly trained model: note the **"My Model"** ownership badge and the owner's email address.
+4. **Real-Time Interactive Prediction**:
+   - Go to **Run Prediction**.
+   - The dynamic form automatically generates form inputs according to the model's feature schema.
+   - Enter input values and click **Run Prediction**.
+   - Show the instantaneous prediction result and model latency.
+5. **Prediction History & Analytics Isolation**:
+   - Navigate to **Prediction History**: Show that predictions are saved with timestamp and model ID.
+   - Open **Analytics**: Show charts of model usage, success rate, and prediction distribution.
+6. **Sign Out & Multi-Tenancy Proof**:
+   - Click **Sign Out**.
+   - Register a second user (e.g., `examiner@college.edu`).
+   - Show that the second user cannot see the previous user's private prediction history, proving complete multi-tenant isolation.
